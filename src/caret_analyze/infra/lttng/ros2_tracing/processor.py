@@ -136,6 +136,13 @@ class Ros2Handler():
             'ros2:rclcpp_buffer_to_ipb',
             'ros2:rclcpp_ipb_to_subscription',
             'ros2:rclcpp_construct_ring_buffer',
+            'ros2:agnocast_subscription_init',
+            'ros2:agnocast_publisher_init',
+            'ros2:agnocast_publish',
+            'ros2:agnocast_create_callable',
+            'ros2:agnocast_callable_start',
+            'ros2:agnocast_callable_end',
+            'ros2:agnocast_take',
         ]
 
         if include_wrapped_tracepoints:
@@ -280,6 +287,10 @@ class Ros2Handler():
         handler_map['ros2_caret:rclcpp_construct_ring_buffer'] = \
             self._handle_rclcpp_construct_ring_buffer
 
+        # === Agnocast (initialization) ===
+        handler_map['ros2:agnocast_subscription_init'] = self._handle_agnocast_subscription_init
+        handler_map['ros2:agnocast_publisher_init'] = self._handle_agnocast_publisher_init
+
         self.handler_map = handler_map
 
     def create_runtime_handler_map(
@@ -324,6 +335,13 @@ class Ros2Handler():
         #  The iron trace points for measurements defined by ros2_tracing
         handler_map['ros2:rclcpp_ring_buffer_enqueue'] = self._handle_rclcpp_ring_buffer_enqueue
         handler_map['ros2:rclcpp_ring_buffer_dequeue'] = self._handle_rclcpp_ring_buffer_dequeue
+
+        #  === Agnocast (runtime) ===
+        handler_map['ros2:agnocast_publish'] = self._handle_agnocast_publish
+        handler_map['ros2:agnocast_create_callable'] = self._handle_agnocast_create_callable
+        handler_map['ros2:agnocast_callable_start'] = self._handle_agnocast_callable_start
+        handler_map['ros2:agnocast_callable_end'] = self._handle_agnocast_callable_end
+        handler_map['ros2:agnocast_take'] = self._handle_agnocast_take
 
         self.handler_map = handler_map
 
@@ -1102,3 +1120,140 @@ class Ros2Handler():
         timestamp = get_field(event, '_timestamp')
         sim_time = get_field(event, 'stamp')
         self.data.add_sim_time(timestamp, sim_time)
+
+    # === Agnocast ===
+    def _handle_agnocast_subscription_init(
+        self,
+        event: dict,
+    ) -> None:
+        handle = get_field(event, 'subscription_handle')
+        node_handle = get_field(event, 'node_handle')
+        callback_object = get_field(event, 'callback')
+        callback_group_addr = get_field(event, 'callback_group')
+        symbol = get_field(event, 'symbol')
+        topic_name = get_field(event, 'topic_name')
+        depth = get_field(event, 'queue_depth')
+        pid_ltid = get_field(event, 'pid_ltid')
+        timestamp = get_field(event, '_timestamp')
+
+        subscription_handle = \
+            self._remapper.subscription_handle_remapper.register_and_get_object_id(handle, event)
+        node_handle = self._remapper.node_handle_remapper.get_nearest_object_id(node_handle, event)
+        callback_object = \
+            self._remapper.callback_remapper.register_and_get_object_id(callback_object, event)
+        callback_group_addr = self._remapper.callback_group_addr_remapper.get_nearest_object_id(
+            callback_group_addr, event)
+        self.data.add_agnocast_subscription(
+            subscription_handle,
+            timestamp,
+            node_handle,
+            callback_object,
+            callback_group_addr,
+            symbol,
+            topic_name,
+            depth,
+            pid_ltid
+        )
+
+        # HACK: add to existing data
+        rmw_handle = self._remapper.rmw_subscription_handle_remapper.register_and_get_object_id(handle, event)
+        subscription_pointer = self._remapper.callback_holder_id_remapper.register_and_get_object_id(
+            handle, event)
+        self.data.callback_group_add_subscription(
+            callback_group_addr, timestamp, subscription_handle)
+        self.data.add_rcl_subscription(
+            subscription_handle,
+            timestamp,
+            node_handle,
+            rmw_handle,
+            topic_name,
+            depth,
+        )
+        self.data.add_rclcpp_subscription(subscription_pointer, timestamp, subscription_handle)
+        self.data.add_callback_object(subscription_pointer, timestamp, callback_object)
+        self.data.add_callback_symbol(callback_object, timestamp, symbol)
+
+    def _handle_agnocast_publisher_init(
+        self,
+        event: dict,
+    ) -> None:
+        handle = get_field(event, 'publisher_handle')
+        node_handle = get_field(event, 'node_handle')
+        topic_name = get_field(event, 'topic_name')
+        depth = get_field(event, 'queue_depth')
+        timestamp = get_field(event, '_timestamp')
+
+        publisher_handle = self._remapper.publisher_handle_remapper.register_and_get_object_id(handle, event)
+        node_handle = self._remapper.node_handle_remapper.get_nearest_object_id(node_handle, event)
+
+        # HACK: add to existing data
+        rmw_handle = self._remapper.rmw_publisher_handle_remapper.register_and_get_object_id(handle, event)
+        self.data.add_publisher(publisher_handle, timestamp, node_handle, rmw_handle, topic_name, depth)
+
+    def _handle_agnocast_publish(
+        self,
+        event: dict,
+    ) -> None:
+        publisher_handle = get_field(event, 'publisher_handle')
+        message = get_field(event, 'message')
+        message_timestamp = get_field(event, 'message_timestamp')
+        timestamp = get_field(event, '_timestamp')
+        tid = get_field(event, '_vtid')
+
+        publisher_handle = self._remapper.publisher_handle_remapper.get_latest_object_id(
+            publisher_handle, event)
+
+        # HACK: add to existing data
+        self.data.add_rclcpp_publish_instance(tid, timestamp, publisher_handle, message, 0)
+        self.data.add_rcl_publish_instance(tid, timestamp, publisher_handle, message)
+        self.data.add_dds_write_instance(tid, timestamp, message)
+        self.data.add_dds_bind_addr_to_stamp(tid, timestamp, 0, message_timestamp)
+
+    def _handle_agnocast_create_callable(
+        self,
+        event: dict,
+    ) -> None:
+        callable_object = get_field(event, 'callable')
+        message = get_field(event, 'message')
+        message_timestamp = get_field(event, 'message_timestamp')
+        pid_ltid = get_field(event, 'pid_ltid')
+        timestamp = get_field(event, '_timestamp')
+
+        self.data.add_agnocast_create_callable_instance(
+            timestamp, callable_object, message, message_timestamp, pid_ltid
+        )
+
+    def _handle_agnocast_callable_start(
+        self,
+        event: dict,
+    ) -> None:
+        callable = get_field(event, 'callable')
+        timestamp = get_field(event, '_timestamp')
+        tid = get_field(event, '_vtid')
+
+        self.data.add_agnocast_callable_start_instance(tid, timestamp, callable)
+
+    def _handle_agnocast_callable_end(
+        self,
+        event: dict,
+    ) -> None:
+        callable = get_field(event, 'callable')
+        timestamp = get_field(event, '_timestamp')
+        tid = get_field(event, '_vtid')
+
+        self.data.add_agnocast_callable_end_instance(tid, timestamp, callable)
+
+    def _handle_agnocast_take(
+        self,
+        event: dict,
+    ) -> None:
+        subscription_handle = get_field(event, 'subscription_handle')
+        message = get_field(event, 'message')
+        message_timestamp = get_field(event, 'message_timestamp')
+        timestamp = get_field(event, '_timestamp')
+        tid = get_field(event, '_vtid')
+
+        # HACK: add to existing data
+        rmw_handle = self._remapper.rmw_subscription_handle_remapper.get_latest_object_id(
+            subscription_handle, event)
+        self.data.add_rmw_take_instance(tid, timestamp, rmw_handle, message, message_timestamp)

@@ -45,7 +45,7 @@ from .value_objects import (CallbackGroupId,
 from ..infra_base import InfraBase
 from ...common import ClockConverter, Util
 from ...exceptions import InvalidArgumentError
-from ...record import RecordsInterface
+from ...record import Columns, ColumnValue, merge, RecordsFactory, RecordsInterface
 from ...value_objects import CallbackGroupValue, ExecutorValue, NodeValue, \
         NodeValueWithId, Qos, ServiceValue, SubscriptionValue, TimerValue
 
@@ -356,6 +356,8 @@ class Lttng(InfraBase):
         'ros2:rclcpp_buffer_to_ipb',
         'ros2_caret:rclcpp_ipb_to_subscription',
         'ros2:rclcpp_ipb_to_subscription',
+        'ros2:agnocast_subscription_init',
+        'ros2:agnocast_publisher_init',
     ]
 
     def __init__(
@@ -568,6 +570,102 @@ class Lttng(InfraBase):
             data.finalize()
             if len(event_filters) > 0:
                 print('filtered to {} events.'.format(filtered_event_count))
+
+        # HACK: Merge agnocast trace data
+        id_2_callback_records = RecordsFactory.create_instance(
+            None,
+            columns=[
+                ColumnValue('pid_ltid'),
+                ColumnValue('callback_object'),
+            ]
+        )
+        id_2_callback_df = data.agnocast_subscriptions.df[['pid_ltid', 'callback_object']]
+        # remove take subscription row
+        id_2_callback_df = id_2_callback_df[id_2_callback_df["pid_ltid"] != 0]
+        for _, row in id_2_callback_df.iterrows():
+            id_2_callback_records.append(row.to_dict())
+
+        callable_2_callback_records = merge(
+            left_records=data.agnocast_create_callable_instances,
+            right_records=id_2_callback_records,
+            join_left_key='pid_ltid',
+            join_right_key='pid_ltid',
+            columns=Columns.from_str(
+                data.agnocast_create_callable_instances.columns + id_2_callback_records.columns
+            ).column_names,
+            how='left'
+        )
+        callable_2_callback_records.drop_columns(
+            ['create_callable_timestamp', 'message', 'message_timestamp', 'pid_ltid']
+        )
+
+        agnocast_callback_start_records = merge(
+            left_records=data.agnocast_callable_start_instances,
+            right_records=callable_2_callback_records,
+            join_left_key='callable_object',
+            join_right_key='callable_object',
+            columns=Columns.from_str(
+                data.agnocast_callable_start_instances.columns + callable_2_callback_records.columns
+            ).column_names,
+            how='left'
+        )
+        agnocast_callback_start_records.drop_columns(
+            ['callable_object']
+        )
+        agnocast_callback_start_records.append_column(
+            ColumnValue('is_intra_process'),
+            [0] * len(agnocast_callback_start_records))
+        agnocast_callback_start_records.rename_columns({
+            'callable_start_timestamp': 'callback_start_timestamp'
+        })
+        data.callback_start_instances.concat(agnocast_callback_start_records)
+        data.callback_start_instances.sort('callback_start_timestamp')
+
+        agnocast_callback_end_records = merge(
+            left_records=data.agnocast_callable_end_instances,
+            right_records=callable_2_callback_records,
+            join_left_key='callable_object',
+            join_right_key='callable_object',
+            columns=Columns.from_str(
+                data.agnocast_callable_end_instances.columns + callable_2_callback_records.columns
+            ).column_names,
+            how='left'
+        )
+        agnocast_callback_end_records.drop_columns(
+            ['callable_object']
+        )
+        agnocast_callback_end_records.rename_columns({
+            'callable_end_timestamp': 'callback_end_timestamp'
+        })
+        data.callback_end_instances.concat(agnocast_callback_end_records)
+        data.callback_end_instances.sort('callback_end_timestamp')
+
+        modified_agnocast_create_callable_records = merge(
+            left_records=data.agnocast_create_callable_instances,
+            right_records=callable_2_callback_records,
+            join_left_key='callable_object',
+            join_right_key='callable_object',
+            columns=Columns.from_str(
+                data.agnocast_create_callable_instances.columns + callable_2_callback_records.columns
+            ).column_names,
+            how='left'
+        )
+        modified_agnocast_create_callable_records.drop_columns(
+            ['callable_object', 'pid_ltid']
+        )
+        modified_agnocast_create_callable_records.rename_columns(
+            {'create_callable_timestamp': 'dispatch_subscription_callback_timestamp'})
+        modified_agnocast_create_callable_records.append_column(
+            ColumnValue('source_timestamp'),
+            modified_agnocast_create_callable_records.get_column_series('message_timestamp'))  # HACK
+        modified_agnocast_create_callable_records.drop_columns(['message_timestamp'])
+        modified_agnocast_create_callable_records.append_column(
+            ColumnValue('message_timestamp'), [0] * len(modified_agnocast_create_callable_records)
+        )
+        data.dispatch_subscription_callback_instances.concat(
+            modified_agnocast_create_callable_records)
+        data.dispatch_subscription_callback_instances.sort(
+            'dispatch_subscription_callback_timestamp')
 
         events_ = None if len(events) == 0 else events
         return data, events_, begin, end

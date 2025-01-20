@@ -94,6 +94,11 @@ class Ros2DataModel():
         self._lifecycle_transitions = TracePointIntermediateData(
             ['state_machine_handle', 'start_label', 'goal_label', 'timestamp'])
 
+        # === Agnocast (initialization) ===
+        self._agnocast_subscriptions = TracePointIntermediateData(
+            ['subscription_handle', 'timestamp', 'node_handle', 'callback_object',
+             'callback_group_addr', 'symbol', 'topic_name', 'depth', 'pid_ltid'])
+
         # Events (multiple instances, may not have a meaningful index)
         self.callback_start_instances = RecordsFactory.create_instance(
             None,
@@ -260,6 +265,34 @@ class Ros2DataModel():
             None,
             columns=[
                 ColumnValue('time_event_stamp'),
+            ]
+        )
+
+        # === Agnocast (runtime) ===
+        self.agnocast_create_callable_instances = RecordsFactory.create_instance(
+            None,
+            columns=[
+                ColumnValue('create_callable_timestamp'),
+                ColumnValue('callable_object'),
+                ColumnValue('message'),
+                ColumnValue('message_timestamp'),
+                ColumnValue('pid_ltid'),
+            ]
+        )
+        self.agnocast_callable_start_instances = RecordsFactory.create_instance(
+            None,
+            columns=[
+                ColumnValue('tid'),
+                ColumnValue('callable_start_timestamp'),
+                ColumnValue('callable_object'),
+            ]
+        )
+        self.agnocast_callable_end_instances = RecordsFactory.create_instance(
+            None,
+            columns=[
+                ColumnValue('tid'),
+                ColumnValue('callable_end_timestamp'),
+                ColumnValue('callable_object'),
             ]
         )
 
@@ -681,6 +714,59 @@ class Ros2DataModel():
         self.dispatch_intra_process_subscription_callback_instances.append(
             record)
 
+    # === Agnocast ===
+    def add_agnocast_subscription(
+        self, handle, timestamp, node_handle, callback_object, callback_group_addr, symbol,
+        topic_name, depth, pid_ltid
+    ) -> None:
+        record = {
+            'subscription_handle': handle,
+            'timestamp': timestamp,
+            'node_handle': node_handle,
+            'callback_object': callback_object,
+            'callback_group_addr': callback_group_addr,
+            'symbol': symbol,
+            'topic_name': topic_name,
+            'depth': depth,
+            'pid_ltid': pid_ltid,
+        }
+        self._agnocast_subscriptions.append(record)
+
+    def add_agnocast_create_callable_instance(
+        self,
+        timestamp: int,
+        callable_object: int,
+        message: int,
+        message_timestamp: int,
+        pid_ltid: int
+    ) -> None:
+        record = {
+            'create_callable_timestamp': timestamp,
+            'callable_object': callable_object,
+            'message': message,
+            'message_timestamp': message_timestamp,
+            'pid_ltid': pid_ltid,
+        }
+        self.agnocast_create_callable_instances.append(record)
+
+    def add_agnocast_callable_start_instance(
+        self, tid: int, timestamp: int, callable: int
+    ) -> None:
+        record = {
+            'tid': tid,
+            'callable_start_timestamp': timestamp,
+            'callable_object': callable,
+        }
+        self.agnocast_callable_start_instances.append(record)
+
+    def add_agnocast_callable_end_instance(self, tid: int, timestamp: int, callable: int) -> None:
+        record = {
+            'tid': tid,
+            'callable_end_timestamp': timestamp,
+            'callable_object': callable
+        }
+        self.agnocast_callable_end_instances.append(record)
+
     def add_tilde_subscribe(
         self,
         timestamp: int,
@@ -924,3 +1010,8 @@ class Ros2DataModel():
 
         self.rmw_impl = self._rmw_impl.get_finalized()
         del self._rmw_impl
+
+        # === Agnocast (initialization) ===
+        self.agnocast_subscriptions = self._agnocast_subscriptions.get_finalized(
+            'subscription_handle')
+        del self._agnocast_subscriptions
