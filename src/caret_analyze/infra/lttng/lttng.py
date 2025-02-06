@@ -596,9 +596,10 @@ class Lttng(InfraBase):
             how='left'
         )
         callable_2_callback_records.drop_columns(
-            ['create_callable_timestamp', 'message', 'message_timestamp', 'pid_ltid']
+            ['create_callable_timestamp', 'message', 'entry_id', 'pid_ltid']
         )
 
+        # Merge to callback_start_instances
         agnocast_callback_start_records = merge(
             left_records=data.agnocast_callable_start_instances,
             right_records=callable_2_callback_records,
@@ -621,6 +622,7 @@ class Lttng(InfraBase):
         data.callback_start_instances.concat(agnocast_callback_start_records)
         data.callback_start_instances.sort('callback_start_timestamp')
 
+        # Merge to callback_end_instances
         agnocast_callback_end_records = merge(
             left_records=data.agnocast_callable_end_instances,
             right_records=callable_2_callback_records,
@@ -640,6 +642,7 @@ class Lttng(InfraBase):
         data.callback_end_instances.concat(agnocast_callback_end_records)
         data.callback_end_instances.sort('callback_end_timestamp')
 
+        # Merge to dispatch_subscription_callback_instances
         modified_agnocast_create_callable_records = merge(
             left_records=data.agnocast_create_callable_instances,
             right_records=callable_2_callback_records,
@@ -657,8 +660,8 @@ class Lttng(InfraBase):
             {'create_callable_timestamp': 'dispatch_subscription_callback_timestamp'})
         modified_agnocast_create_callable_records.append_column(
             ColumnValue('source_timestamp'),
-            modified_agnocast_create_callable_records.get_column_series('message_timestamp'))  # HACK
-        modified_agnocast_create_callable_records.drop_columns(['message_timestamp'])
+            modified_agnocast_create_callable_records.get_column_series('entry_id'))  # HACK
+        modified_agnocast_create_callable_records.drop_columns(['entry_id'])
         modified_agnocast_create_callable_records.append_column(
             ColumnValue('message_timestamp'), [0] * len(modified_agnocast_create_callable_records)
         )

@@ -275,7 +275,7 @@ class Ros2DataModel():
                 ColumnValue('create_callable_timestamp'),
                 ColumnValue('callable_object'),
                 ColumnValue('message'),
-                ColumnValue('message_timestamp'),
+                ColumnValue('entry_id'),
                 ColumnValue('pid_ltid'),
             ]
         )
@@ -737,14 +737,14 @@ class Ros2DataModel():
         timestamp: int,
         callable_object: int,
         message: int,
-        message_timestamp: int,
+        entry_id: int,
         pid_ltid: int
     ) -> None:
         record = {
             'create_callable_timestamp': timestamp,
             'callable_object': callable_object,
             'message': message,
-            'message_timestamp': message_timestamp,
+            'entry_id': entry_id,
             'pid_ltid': pid_ltid,
         }
         self.agnocast_create_callable_instances.append(record)

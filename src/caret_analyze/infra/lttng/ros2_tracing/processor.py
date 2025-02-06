@@ -1196,7 +1196,7 @@ class Ros2Handler():
     ) -> None:
         publisher_handle = get_field(event, 'publisher_handle')
         message = get_field(event, 'message')
-        message_timestamp = get_field(event, 'message_timestamp')
+        entry_id = get_field(event, 'entry_id')
         timestamp = get_field(event, '_timestamp')
         tid = get_field(event, '_vtid')
 
@@ -1207,7 +1207,7 @@ class Ros2Handler():
         self.data.add_rclcpp_publish_instance(tid, timestamp, publisher_handle, message, 0)
         self.data.add_rcl_publish_instance(tid, timestamp, publisher_handle, message)
         self.data.add_dds_write_instance(tid, timestamp, message)
-        self.data.add_dds_bind_addr_to_stamp(tid, timestamp, 0, message_timestamp)
+        self.data.add_dds_bind_addr_to_stamp(tid, timestamp, 0, entry_id)
 
     def _handle_agnocast_create_callable(
         self,
@@ -1215,12 +1215,12 @@ class Ros2Handler():
     ) -> None:
         callable_object = get_field(event, 'callable')
         message = get_field(event, 'message')
-        message_timestamp = get_field(event, 'message_timestamp')
+        entry_id = get_field(event, 'entry_id')
         pid_ltid = get_field(event, 'pid_ltid')
         timestamp = get_field(event, '_timestamp')
 
         self.data.add_agnocast_create_callable_instance(
-            timestamp, callable_object, message, message_timestamp, pid_ltid
+            timestamp, callable_object, message, entry_id, pid_ltid
         )
 
     def _handle_agnocast_callable_start(
@@ -1249,11 +1249,11 @@ class Ros2Handler():
     ) -> None:
         subscription_handle = get_field(event, 'subscription_handle')
         message = get_field(event, 'message')
-        message_timestamp = get_field(event, 'message_timestamp')
+        entry_id = get_field(event, 'entry_id')
         timestamp = get_field(event, '_timestamp')
         tid = get_field(event, '_vtid')
 
         # HACK: add to existing data
         rmw_handle = self._remapper.rmw_subscription_handle_remapper.get_latest_object_id(
             subscription_handle, event)
-        self.data.add_rmw_take_instance(tid, timestamp, rmw_handle, message, message_timestamp)
+        self.data.add_rmw_take_instance(tid, timestamp, rmw_handle, message, entry_id)
