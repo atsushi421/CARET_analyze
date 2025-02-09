@@ -575,28 +575,28 @@ class Lttng(InfraBase):
         id_2_callback_records = RecordsFactory.create_instance(
             None,
             columns=[
-                ColumnValue('pid_ltid'),
+                ColumnValue('pid_ciid'),
                 ColumnValue('callback_object'),
             ]
         )
-        id_2_callback_df = data.agnocast_subscriptions.df[['pid_ltid', 'callback_object']]
+        id_2_callback_df = data.agnocast_subscriptions.df[['pid_ciid', 'callback_object']]
         # remove take subscription row
-        id_2_callback_df = id_2_callback_df[id_2_callback_df["pid_ltid"] != 0]
+        id_2_callback_df = id_2_callback_df[id_2_callback_df["pid_ciid"] != 0]
         for _, row in id_2_callback_df.iterrows():
             id_2_callback_records.append(row.to_dict())
 
         callable_2_callback_records = merge(
             left_records=data.agnocast_create_callable_instances,
             right_records=id_2_callback_records,
-            join_left_key='pid_ltid',
-            join_right_key='pid_ltid',
+            join_left_key='pid_ciid',
+            join_right_key='pid_ciid',
             columns=Columns.from_str(
                 data.agnocast_create_callable_instances.columns + id_2_callback_records.columns
             ).column_names,
             how='left'
         )
         callable_2_callback_records.drop_columns(
-            ['create_callable_timestamp', 'message', 'entry_id', 'pid_ltid']
+            ['create_callable_timestamp', 'message', 'entry_id', 'pid_ciid']
         )
 
         # Merge to callback_start_instances
@@ -654,7 +654,7 @@ class Lttng(InfraBase):
             how='left'
         )
         modified_agnocast_create_callable_records.drop_columns(
-            ['callable_object', 'pid_ltid']
+            ['callable_object', 'pid_ciid']
         )
         modified_agnocast_create_callable_records.rename_columns(
             {'create_callable_timestamp': 'dispatch_subscription_callback_timestamp'})

@@ -97,7 +97,7 @@ class Ros2DataModel():
         # === Agnocast (initialization) ===
         self._agnocast_subscriptions = TracePointIntermediateData(
             ['subscription_handle', 'timestamp', 'node_handle', 'callback_object',
-             'callback_group_addr', 'symbol', 'topic_name', 'depth', 'pid_ltid'])
+             'callback_group_addr', 'symbol', 'topic_name', 'depth', 'pid_ciid'])
 
         # Events (multiple instances, may not have a meaningful index)
         self.callback_start_instances = RecordsFactory.create_instance(
@@ -276,7 +276,7 @@ class Ros2DataModel():
                 ColumnValue('callable_object'),
                 ColumnValue('message'),
                 ColumnValue('entry_id'),
-                ColumnValue('pid_ltid'),
+                ColumnValue('pid_ciid'),
             ]
         )
         self.agnocast_callable_start_instances = RecordsFactory.create_instance(
@@ -717,7 +717,7 @@ class Ros2DataModel():
     # === Agnocast ===
     def add_agnocast_subscription(
         self, handle, timestamp, node_handle, callback_object, callback_group_addr, symbol,
-        topic_name, depth, pid_ltid
+        topic_name, depth, pid_ciid
     ) -> None:
         record = {
             'subscription_handle': handle,
@@ -728,7 +728,7 @@ class Ros2DataModel():
             'symbol': symbol,
             'topic_name': topic_name,
             'depth': depth,
-            'pid_ltid': pid_ltid,
+            'pid_ciid': pid_ciid,
         }
         self._agnocast_subscriptions.append(record)
 
@@ -738,14 +738,14 @@ class Ros2DataModel():
         callable_object: int,
         message: int,
         entry_id: int,
-        pid_ltid: int
+        pid_ciid: int
     ) -> None:
         record = {
             'create_callable_timestamp': timestamp,
             'callable_object': callable_object,
             'message': message,
             'entry_id': entry_id,
-            'pid_ltid': pid_ltid,
+            'pid_ciid': pid_ciid,
         }
         self.agnocast_create_callable_instances.append(record)
 

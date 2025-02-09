@@ -1133,7 +1133,7 @@ class Ros2Handler():
         symbol = get_field(event, 'symbol')
         topic_name = get_field(event, 'topic_name')
         depth = get_field(event, 'queue_depth')
-        pid_ltid = get_field(event, 'pid_ltid')
+        pid_ciid = get_field(event, 'pid_ciid')
         timestamp = get_field(event, '_timestamp')
 
         subscription_handle = \
@@ -1152,7 +1152,7 @@ class Ros2Handler():
             symbol,
             topic_name,
             depth,
-            pid_ltid
+            pid_ciid
         )
 
         # HACK: add to existing data
@@ -1216,11 +1216,11 @@ class Ros2Handler():
         callable_object = get_field(event, 'callable')
         message = get_field(event, 'message')
         entry_id = get_field(event, 'entry_id')
-        pid_ltid = get_field(event, 'pid_ltid')
+        pid_ciid = get_field(event, 'pid_ciid')
         timestamp = get_field(event, '_timestamp')
 
         self.data.add_agnocast_create_callable_instance(
-            timestamp, callable_object, message, entry_id, pid_ltid
+            timestamp, callable_object, message, entry_id, pid_ciid
         )
 
     def _handle_agnocast_callable_start(
