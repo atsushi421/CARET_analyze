@@ -1207,7 +1207,7 @@ class Ros2Handler():
         self.data.add_rclcpp_publish_instance(tid, timestamp, publisher_handle, message, 0)
         self.data.add_rcl_publish_instance(tid, timestamp, publisher_handle, message)
         self.data.add_dds_write_instance(tid, timestamp, message)
-        self.data.add_dds_bind_addr_to_stamp(tid, timestamp, 0, entry_id)
+        self.data.add_dds_bind_addr_to_stamp(tid, timestamp, 0, entry_id+1)
 
     def _handle_agnocast_create_callable(
         self,
@@ -1219,8 +1219,10 @@ class Ros2Handler():
         pid_ciid = get_field(event, 'pid_ciid')
         timestamp = get_field(event, '_timestamp')
 
+        callable_object = self._remapper.callable_remapper.register_and_get_object_id(callable_object, event)
+
         self.data.add_agnocast_create_callable_instance(
-            timestamp, callable_object, message, entry_id, pid_ciid
+            timestamp, callable_object, message, entry_id+1, pid_ciid
         )
 
     def _handle_agnocast_callable_start(
@@ -1231,6 +1233,8 @@ class Ros2Handler():
         timestamp = get_field(event, '_timestamp')
         tid = get_field(event, '_vtid')
 
+        callable = self._remapper.callable_remapper.get_latest_object_id(callable, event)
+
         self.data.add_agnocast_callable_start_instance(tid, timestamp, callable)
 
     def _handle_agnocast_callable_end(
@@ -1240,6 +1244,8 @@ class Ros2Handler():
         callable = get_field(event, 'callable')
         timestamp = get_field(event, '_timestamp')
         tid = get_field(event, '_vtid')
+
+        callable = self._remapper.callable_remapper.get_latest_object_id(callable, event)
 
         self.data.add_agnocast_callable_end_instance(tid, timestamp, callable)
 
@@ -1256,4 +1262,4 @@ class Ros2Handler():
         # HACK: add to existing data
         rmw_handle = self._remapper.rmw_subscription_handle_remapper.get_latest_object_id(
             subscription_handle, event)
-        self.data.add_rmw_take_instance(tid, timestamp, rmw_handle, message, entry_id)
+        self.data.add_rmw_take_instance(tid, timestamp, rmw_handle, message, entry_id+1)
